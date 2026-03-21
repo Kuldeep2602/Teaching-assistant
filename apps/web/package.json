@@ -1,0 +1,27 @@
+{
+  "name": "@veda/web",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "node ./scripts/dev.mjs",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc -p tsconfig.typecheck.json --noEmit",
+    "test": "echo \"No frontend tests yet\""
+  },
+  "dependencies": {
+    "@veda/shared": "1.0.0",
+    "next": "^15.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "socket.io-client": "^4.8.1",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "typescript": "^5.8.2"
+  }
+}

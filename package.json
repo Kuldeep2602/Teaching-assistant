@@ -1,0 +1,25 @@
+{
+  "name": "veda-ai-assessment-creator",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build -w @veda/shared && concurrently \"npm run dev -w @veda/api\" \"npm run dev -w @veda/web\"",
+    "dev:api": "npm run dev -w @veda/api",
+    "dev:web": "npm run dev -w @veda/web",
+    "dev:worker": "npm run build -w @veda/shared && npm run worker -w @veda/api",
+    "build": "npm run build -ws",
+    "test": "npm run test -ws",
+    "lint": "npm run lint -ws",
+    "typecheck": "npm run typecheck -ws"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "concurrently": "^9.1.2",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
