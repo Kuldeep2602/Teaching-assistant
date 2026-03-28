@@ -74,7 +74,13 @@ const makePdfFileName = (title: string) =>
     .replace(/^-+|-+$/g, "") || "assessment-paper"}.pdf`;
 
 export const downloadAssignmentPdfFile = async (pdfUrl: string, title: string) => {
-  const response = await fetch(`${API_BASE_URL}${pdfUrl}`);
+  const resolvedPdfUrl =
+    /^https?:\/\//i.test(pdfUrl) || pdfUrl.startsWith("blob:")
+      ? pdfUrl
+      : pdfUrl.startsWith("/")
+        ? `${API_BASE_URL}${pdfUrl}`
+        : `${API_BASE_URL}/${pdfUrl}`;
+  const response = await fetch(resolvedPdfUrl);
   if (!response.ok) {
     throw new Error("Failed to download PDF");
   }

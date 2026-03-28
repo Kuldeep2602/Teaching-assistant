@@ -168,7 +168,6 @@ export const renderPaperPdf = async (assignmentId: string, paper: GeneratedPaper
   });
 
   return {
-    outputPath,
-    publicUrl: `/generated/${fileName}`
+    outputPath
   };
 };

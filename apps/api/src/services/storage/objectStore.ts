@@ -6,6 +6,8 @@ import type { Express } from "express";
 import { env } from "../../config/env.js";
 
 const makeSafeName = (fileName: string) => fileName.replace(/[^a-zA-Z0-9.-]/g, "_");
+const getGeneratedPdfObjectPath = (assignmentId: string) => `generated/${assignmentId}.pdf`;
+const getLocalGeneratedPdfPath = (assignmentId: string) => path.resolve(env.PDF_OUTPUT_DIR, `${assignmentId}.pdf`);
 
 const hasSupabaseConfig = () => Boolean(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY);
 
@@ -16,20 +18,60 @@ const getSupabaseHeaders = (mimeType: string) => ({
   "x-upsert": "true"
 });
 
-const uploadToSupabase = async (file: Express.Multer.File): Promise<AssignmentUpload> => {
-  const objectPath = `assignments/${Date.now()}-${makeSafeName(file.originalname)}`;
-  const uploadUrl = `${env.SUPABASE_URL}/storage/v1/object/${env.SUPABASE_UPLOAD_BUCKET}/${objectPath}`;
-
+const uploadBufferToSupabase = async (bucket: string, objectPath: string, mimeType: string, buffer: Buffer) => {
+  const uploadUrl = `${env.SUPABASE_URL}/storage/v1/object/${bucket}/${objectPath}`;
   const response = await fetch(uploadUrl, {
     method: "POST",
-    headers: getSupabaseHeaders(file.mimetype),
-    body: new Uint8Array(file.buffer)
+    headers: getSupabaseHeaders(mimeType),
+    body: new Blob([Uint8Array.from(buffer)], { type: mimeType })
   });
 
   if (!response.ok) {
     const message = await response.text().catch(() => "Supabase upload failed");
     throw new Error(`Supabase upload failed: ${message}`);
   }
+};
+
+const deleteSupabaseObject = async (bucket: string, objectPath: string) => {
+  const deleteUrl = `${env.SUPABASE_URL}/storage/v1/object/${bucket}/${objectPath}`;
+  const response = await fetch(deleteUrl, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY!}`,
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY!
+    }
+  });
+
+  if (!response.ok && response.status !== 404) {
+    const message = await response.text().catch(() => "Supabase delete failed");
+    throw new Error(`Supabase delete failed: ${message}`);
+  }
+};
+
+const downloadSupabaseObject = async (bucket: string, objectPath: string) => {
+  const objectUrl = `${env.SUPABASE_URL}/storage/v1/object/${bucket}/${objectPath}`;
+  const response = await fetch(objectUrl, {
+    headers: {
+      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY!}`,
+      apikey: env.SUPABASE_SERVICE_ROLE_KEY!
+    }
+  });
+
+  if (response.status === 404) {
+    return null;
+  }
+
+  if (!response.ok) {
+    const message = await response.text().catch(() => "Supabase download failed");
+    throw new Error(`Supabase download failed: ${message}`);
+  }
+
+  return Buffer.from(await response.arrayBuffer());
+};
+
+const uploadToSupabase = async (file: Express.Multer.File): Promise<AssignmentUpload> => {
+  const objectPath = `assignments/${Date.now()}-${makeSafeName(file.originalname)}`;
+  await uploadBufferToSupabase(env.SUPABASE_UPLOAD_BUCKET, objectPath, file.mimetype, file.buffer);
 
   return {
     originalName: file.originalname,
@@ -72,19 +114,7 @@ const deleteFromSupabase = async (upload: AssignmentUpload) => {
     return;
   }
 
-  const deleteUrl = `${env.SUPABASE_URL}/storage/v1/object/${upload.bucket}/${upload.path}`;
-  const response = await fetch(deleteUrl, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY!}`,
-      apikey: env.SUPABASE_SERVICE_ROLE_KEY!
-    }
-  });
-
-  if (!response.ok && response.status !== 404) {
-    const message = await response.text().catch(() => "Supabase delete failed");
-    throw new Error(`Supabase delete failed: ${message}`);
-  }
+  await deleteSupabaseObject(upload.bucket, upload.path);
 };
 
 const deleteLocalUpload = async (upload: AssignmentUpload) => {
@@ -118,21 +148,67 @@ export const readStoredUploadBuffer = async (upload: AssignmentUpload) => {
       throw new Error("Supabase storage is not configured for uploaded file access");
     }
 
-    const objectUrl = `${env.SUPABASE_URL}/storage/v1/object/${upload.bucket}/${upload.path}`;
-    const response = await fetch(objectUrl, {
-      headers: {
-        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY!}`,
-        apikey: env.SUPABASE_SERVICE_ROLE_KEY!
-      }
-    });
-
-    if (!response.ok) {
-      const message = await response.text().catch(() => "Supabase download failed");
-      throw new Error(`Supabase download failed: ${message}`);
+    const buffer = await downloadSupabaseObject(upload.bucket, upload.path);
+    if (!buffer) {
+      throw new Error("Supabase download failed: object not found");
     }
 
-    return Buffer.from(await response.arrayBuffer());
+    return buffer;
   }
 
   return fsPromises.readFile(upload.path);
+};
+
+export const persistGeneratedPdf = async (assignmentId: string, localFilePath: string) => {
+  if (hasSupabaseConfig()) {
+    const pdfBuffer = await fsPromises.readFile(localFilePath);
+    await uploadBufferToSupabase(
+      env.SUPABASE_PDF_BUCKET!,
+      getGeneratedPdfObjectPath(assignmentId),
+      "application/pdf",
+      pdfBuffer
+    );
+
+    await fsPromises.unlink(localFilePath).catch((error: NodeJS.ErrnoException) => {
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    });
+  }
+
+  return {
+    publicUrl: `/api/assignments/${assignmentId}/pdf`
+  };
+};
+
+export const readGeneratedPdfBuffer = async (assignmentId: string) => {
+  if (hasSupabaseConfig()) {
+    const buffer = await downloadSupabaseObject(env.SUPABASE_PDF_BUCKET!, getGeneratedPdfObjectPath(assignmentId));
+    if (buffer) {
+      return buffer;
+    }
+  }
+
+  const localFilePath = getLocalGeneratedPdfPath(assignmentId);
+  try {
+    return await fsPromises.readFile(localFilePath);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return null;
+    }
+
+    throw error;
+  }
+};
+
+export const deleteGeneratedPdf = async (assignmentId: string) => {
+  if (hasSupabaseConfig()) {
+    await deleteSupabaseObject(env.SUPABASE_PDF_BUCKET!, getGeneratedPdfObjectPath(assignmentId));
+  }
+
+  await fsPromises.unlink(getLocalGeneratedPdfPath(assignmentId)).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "ENOENT") {
+      throw error;
+    }
+  });
 };

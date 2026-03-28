@@ -7,6 +7,7 @@ import { GeneratedPaperModel } from "../models/GeneratedPaper.js";
 import { updateAssignmentStatus, emitAssignmentStatus } from "../services/assignmentService.js";
 import { renderPaperPdf } from "../services/pdf/renderPaperPdf.js";
 import { invalidateAssignmentCaches } from "../services/storage/cache.js";
+import { persistGeneratedPdf } from "../services/storage/objectStore.js";
 
 export const startPdfWorker = async () => {
   await connectToMongo();
@@ -24,10 +25,11 @@ export const startPdfWorker = async () => {
       }
 
       const pdf = await renderPaperPdf(assignment._id.toString(), generatedPaper.paper);
+      const storedPdf = await persistGeneratedPdf(assignment._id.toString(), pdf.outputPath);
 
       await updateAssignmentStatus(assignment._id.toString(), {
         status: "pdf_ready",
-        pdfUrl: pdf.publicUrl,
+        pdfUrl: storedPdf.publicUrl,
         errorMessage: null
       });
 
@@ -38,7 +40,7 @@ export const startPdfWorker = async () => {
         status: "pdf_ready",
         timestamp: new Date().toISOString(),
         message: "PDF ready",
-        pdfUrl: pdf.publicUrl
+        pdfUrl: storedPdf.publicUrl
       });
     },
     {

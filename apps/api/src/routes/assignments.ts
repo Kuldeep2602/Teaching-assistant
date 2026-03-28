@@ -10,6 +10,8 @@ import {
   resetGeneratedPaper,
   updateAssignmentStatus
 } from "../services/assignmentService.js";
+import { renderPaperPdf } from "../services/pdf/renderPaperPdf.js";
+import { persistGeneratedPdf, readGeneratedPdfBuffer } from "../services/storage/objectStore.js";
 import { persistIncomingUpload } from "../services/storage/objectStore.js";
 import { uploadMiddleware } from "../services/storage/upload.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -25,6 +27,13 @@ const parseAssignmentInput = (body: Record<string, unknown>): AssignmentInput =>
     questionTypes:
       typeof body.questionTypes === "string" ? JSON.parse(body.questionTypes) : body.questionTypes
   });
+
+const makeDownloadFileName = (title: string) =>
+  `${title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "assessment-paper"}.pdf`;
 
 export const assignmentsRouter = Router();
 
@@ -47,6 +56,43 @@ assignmentsRouter.get(
     }
 
     response.json(assignment);
+  })
+);
+
+assignmentsRouter.get(
+  "/assignments/:id/pdf",
+  asyncHandler(async (request, response) => {
+    const id = Array.isArray(request.params.id) ? request.params.id[0] : request.params.id;
+    const assignment = await getAssignmentById(id);
+    if (!assignment) {
+      response.status(404).json({ message: "Assignment not found" });
+      return;
+    }
+
+    let pdfBuffer = await readGeneratedPdfBuffer(id);
+
+    if (!pdfBuffer && assignment.generatedPaper) {
+      const renderedPdf = await renderPaperPdf(id, assignment.generatedPaper);
+      const storedPdf = await persistGeneratedPdf(id, renderedPdf.outputPath);
+
+      await updateAssignmentStatus(id, {
+        status: "pdf_ready",
+        pdfUrl: storedPdf.publicUrl,
+        errorMessage: null
+      });
+
+      pdfBuffer = await readGeneratedPdfBuffer(id);
+    }
+
+    if (!pdfBuffer) {
+      response.status(404).json({ message: "PDF not found" });
+      return;
+    }
+
+    response.setHeader("Content-Type", "application/pdf");
+    response.setHeader("Content-Length", String(pdfBuffer.length));
+    response.setHeader("Content-Disposition", `attachment; filename=\"${makeDownloadFileName(assignment.title)}\"`);
+    response.send(pdfBuffer);
   })
 );
 

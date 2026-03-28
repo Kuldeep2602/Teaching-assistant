@@ -1,7 +1,4 @@
-import fs from "node:fs/promises";
-import path from "node:path";
 import type { AssignmentInput, AssignmentRecord, SocketEventPayload } from "@veda/shared";
-import { env } from "../config/env.js";
 import { AssignmentModel, type AssignmentDocument } from "../models/Assignment.js";
 import { GeneratedPaperModel } from "../models/GeneratedPaper.js";
 import {
@@ -11,22 +8,8 @@ import {
   getCachedAssignmentList,
   invalidateAssignmentCaches
 } from "./storage/cache.js";
-import { deleteStoredUpload } from "./storage/objectStore.js";
+import { deleteGeneratedPdf, deleteStoredUpload } from "./storage/objectStore.js";
 import { publishAssignmentEvent } from "./socket/eventBus.js";
-
-const unlinkIfPresent = async (filePath?: string | null) => {
-  if (!filePath) {
-    return;
-  }
-
-  try {
-    await fs.unlink(filePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-      throw error;
-    }
-  }
-};
 
 const mapAssignment = async (assignment: AssignmentDocument): Promise<AssignmentRecord> => {
   const generatedPaper = await GeneratedPaperModel.findOne({
@@ -47,7 +30,7 @@ const mapAssignment = async (assignment: AssignmentDocument): Promise<Assignment
     status: assignment.status,
     createdAt: assignment.createdAt.toISOString(),
     updatedAt: assignment.updatedAt.toISOString(),
-    pdfUrl: assignment.pdfUrl ?? null,
+    pdfUrl: assignment.pdfUrl ? `/api/assignments/${assignment._id.toString()}/pdf` : null,
     errorMessage: assignment.errorMessage ?? null,
     upload: assignment.upload
       ? {
@@ -161,15 +144,11 @@ export const deleteAssignment = async (id: string) => {
     return false;
   }
 
-  const pdfPath = assignment.pdfUrl
-    ? path.resolve(env.PDF_OUTPUT_DIR, path.basename(assignment.pdfUrl))
-    : null;
-
   await GeneratedPaperModel.deleteOne({ assignmentId: assignment._id });
   await assignment.deleteOne();
   await Promise.all([
     deleteStoredUpload(assignment.upload ?? null),
-    unlinkIfPresent(pdfPath),
+    deleteGeneratedPdf(id),
     invalidateAssignmentCaches(id)
   ]);
 

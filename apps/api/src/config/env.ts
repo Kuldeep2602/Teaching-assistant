@@ -55,6 +55,7 @@ const envSchema = z.object({
   SUPABASE_URL: z.string().url().optional(),
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
   SUPABASE_UPLOAD_BUCKET: z.string().default("assignment-uploads"),
+  SUPABASE_PDF_BUCKET: z.string().optional(),
   UPLOAD_DIR: z.string().default(path.resolve(process.cwd(), "uploads")),
   PDF_OUTPUT_DIR: z.string().default(path.resolve(process.cwd(), "generated")),
   NEXT_PUBLIC_API_BASE_URL: z.string().default("http://localhost:4000")
@@ -71,6 +72,7 @@ export const env = envSchema.parse({
   SUPABASE_URL: process.env.SUPABASE_URL,
   SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
   SUPABASE_UPLOAD_BUCKET: process.env.SUPABASE_UPLOAD_BUCKET,
+  SUPABASE_PDF_BUCKET: process.env.SUPABASE_PDF_BUCKET,
   UPLOAD_DIR: process.env.UPLOAD_DIR,
   PDF_OUTPUT_DIR: process.env.PDF_OUTPUT_DIR,
   NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL
@@ -78,4 +80,8 @@ export const env = envSchema.parse({
 
 if (env.PORT && !process.env.API_PORT) {
   env.API_PORT = env.PORT;
+}
+
+if (!env.SUPABASE_PDF_BUCKET) {
+  env.SUPABASE_PDF_BUCKET = env.SUPABASE_UPLOAD_BUCKET;
 }
