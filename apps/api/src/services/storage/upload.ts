@@ -1,22 +1,8 @@
-import fs from "node:fs";
 import path from "node:path";
 import multer from "multer";
-import { env } from "../../config/env.js";
-
-fs.mkdirSync(env.UPLOAD_DIR, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_request, _file, callback) => {
-    callback(null, env.UPLOAD_DIR);
-  },
-  filename: (_request, file, callback) => {
-    const safeName = file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
-    callback(null, `${Date.now()}-${safeName}`);
-  }
-});
 
 export const uploadMiddleware = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 10 * 1024 * 1024
   },

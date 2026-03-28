@@ -11,6 +11,7 @@ import {
   getCachedAssignmentList,
   invalidateAssignmentCaches
 } from "./storage/cache.js";
+import { deleteStoredUpload } from "./storage/objectStore.js";
 import { publishAssignmentEvent } from "./socket/eventBus.js";
 
 const unlinkIfPresent = async (filePath?: string | null) => {
@@ -48,7 +49,17 @@ const mapAssignment = async (assignment: AssignmentDocument): Promise<Assignment
     updatedAt: assignment.updatedAt.toISOString(),
     pdfUrl: assignment.pdfUrl ?? null,
     errorMessage: assignment.errorMessage ?? null,
-    upload: assignment.upload ?? null,
+    upload: assignment.upload
+      ? {
+          originalName: assignment.upload.originalName,
+          mimeType: assignment.upload.mimeType,
+          provider: assignment.upload.provider,
+          bucket: assignment.upload.bucket ?? undefined,
+          path: assignment.upload.path,
+          publicUrl: assignment.upload.publicUrl ?? null,
+          extractedText: assignment.upload.extractedText ?? ""
+        }
+      : null,
     generatedPaper: generatedPaper?.paper ?? null
   };
 };
@@ -150,7 +161,6 @@ export const deleteAssignment = async (id: string) => {
     return false;
   }
 
-  const uploadPath = assignment.upload?.path ?? null;
   const pdfPath = assignment.pdfUrl
     ? path.resolve(env.PDF_OUTPUT_DIR, path.basename(assignment.pdfUrl))
     : null;
@@ -158,7 +168,7 @@ export const deleteAssignment = async (id: string) => {
   await GeneratedPaperModel.deleteOne({ assignmentId: assignment._id });
   await assignment.deleteOne();
   await Promise.all([
-    unlinkIfPresent(uploadPath),
+    deleteStoredUpload(assignment.upload ?? null),
     unlinkIfPresent(pdfPath),
     invalidateAssignmentCaches(id)
   ]);

@@ -59,7 +59,10 @@ export const generatedPaperSchema = z.object({
 export const assignmentUploadSchema = z.object({
   originalName: z.string().trim().min(1),
   mimeType: z.string().trim().min(1),
+  provider: z.enum(["local", "supabase"]).default("local"),
+  bucket: z.string().trim().optional(),
   path: z.string().trim().min(1),
+  publicUrl: z.string().trim().nullable().optional().default(null),
   extractedText: z.string().trim().optional().default("")
 });
 

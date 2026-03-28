@@ -10,6 +10,7 @@ import {
   resetGeneratedPaper,
   updateAssignmentStatus
 } from "../services/assignmentService.js";
+import { persistIncomingUpload } from "../services/storage/objectStore.js";
 import { uploadMiddleware } from "../services/storage/upload.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
@@ -55,14 +56,7 @@ assignmentsRouter.post(
   asyncHandler(async (request, response) => {
     const parsedInput = parseAssignmentInput(request.body as Record<string, unknown>);
 
-    const upload = request.file
-      ? {
-          originalName: request.file.originalname,
-          mimeType: request.file.mimetype,
-          path: request.file.path,
-          extractedText: ""
-        }
-      : undefined;
+    const upload = request.file ? await persistIncomingUpload(request.file) : undefined;
 
     const assignment = await createAssignment(parsedInput, upload);
     response.status(201).json(assignment);

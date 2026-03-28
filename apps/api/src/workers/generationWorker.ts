@@ -40,7 +40,7 @@ export const startGenerationWorker = async () => {
         let extractedText = assignment.upload?.extractedText ?? "";
 
         if (assignment.upload?.path && !extractedText) {
-          extractedText = await extractTextFromFile(assignment.upload.path);
+          extractedText = await extractTextFromFile(assignment.upload);
           assignment.upload.extractedText = extractedText;
           await assignment.save();
         }

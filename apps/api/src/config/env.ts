@@ -52,6 +52,9 @@ const envSchema = z.object({
   REDIS_URL: z.string().default("redis://localhost:6379"),
   GROQ_API_KEY: z.string().optional(),
   AI_PROVIDER_MODE: z.enum(["auto", "mock", "groq"]).default("auto"),
+  SUPABASE_URL: z.string().url().optional(),
+  SUPABASE_SERVICE_ROLE_KEY: z.string().optional(),
+  SUPABASE_UPLOAD_BUCKET: z.string().default("assignment-uploads"),
   UPLOAD_DIR: z.string().default(path.resolve(process.cwd(), "uploads")),
   PDF_OUTPUT_DIR: z.string().default(path.resolve(process.cwd(), "generated")),
   NEXT_PUBLIC_API_BASE_URL: z.string().default("http://localhost:4000")
@@ -65,6 +68,9 @@ export const env = envSchema.parse({
   REDIS_URL: process.env.REDIS_URL,
   GROQ_API_KEY: process.env.GROQ_API_KEY,
   AI_PROVIDER_MODE: process.env.AI_PROVIDER_MODE,
+  SUPABASE_URL: process.env.SUPABASE_URL,
+  SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
+  SUPABASE_UPLOAD_BUCKET: process.env.SUPABASE_UPLOAD_BUCKET,
   UPLOAD_DIR: process.env.UPLOAD_DIR,
   PDF_OUTPUT_DIR: process.env.PDF_OUTPUT_DIR,
   NEXT_PUBLIC_API_BASE_URL: process.env.NEXT_PUBLIC_API_BASE_URL

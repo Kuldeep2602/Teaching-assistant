@@ -14,7 +14,10 @@ const assignmentUploadSchema = new Schema(
   {
     originalName: { type: String, required: true },
     mimeType: { type: String, required: true },
+    provider: { type: String, enum: ["local", "supabase"], required: true, default: "local" },
+    bucket: { type: String, default: null },
     path: { type: String, required: true },
+    publicUrl: { type: String, default: null },
     extractedText: { type: String, default: "" }
   },
   { _id: false }
