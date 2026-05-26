@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { DEMO_SCHOOL } from "@veda/shared";
+import { useAssignmentsStore } from "../store/assignments";
 
 const navItems = [
   { href: "/home", label: "Home", icon: "home", matchPrefix: "/home" },
@@ -70,9 +71,17 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const assignmentCount = useAssignmentsStore((state) => state.assignments.length);
+  const fetchAssignments = useAssignmentsStore((state) => state.fetchAssignments);
   const activeLabel =
     navItems.find((item) => pathname === item.matchPrefix || pathname.startsWith(`${item.matchPrefix}/`))?.label ||
     "Home";
+
+  useEffect(() => {
+    if (assignmentCount === 0) {
+      void fetchAssignments();
+    }
+  }, [assignmentCount, fetchAssignments]);
 
   const handleBack = () => {
     if (window.history.length > 1) {
@@ -111,6 +120,7 @@ export function AppShell({
                 <NavIcon type={item.icon} />
               </span>
               <span className="nav-label">{item.label}</span>
+              {item.icon === "assignment" ? <span className="nav-count">{assignmentCount}</span> : null}
             </Link>
           ))}
         </nav>

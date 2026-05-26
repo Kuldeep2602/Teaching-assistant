@@ -20,16 +20,19 @@ export function QuestionPaperView({
         <div className="exam-banner-copy">
           <p className="hero-copy">
             {assignment.generatedPaper
-              ? `${assignment.title} is ready. Review the structured paper, regenerate it if needed, or download the formatted PDF.`
+              ? `${assignment.title} is ready. Review the structured paper or download the formatted PDF.`
               : `We are preparing a structured question paper for ${assignment.subject} ${assignment.className}.`}
           </p>
           <div className="hero-actions">
-            <button className="download-chip" onClick={() => void onExport()} disabled={busy || !assignment.generatedPaper}>
-              <span>Download PDF</span>
-            </button>
-            <button className="secondary-button thin-button" onClick={() => void onGenerate()} disabled={busy}>
-              <span>{busy ? "Generating..." : assignment.generatedPaper ? "Regenerate Paper" : "Generate Paper"}</span>
-            </button>
+            {assignment.generatedPaper ? (
+              <button className="download-chip" onClick={() => void onExport()} disabled={busy}>
+                <span>Download PDF</span>
+              </button>
+            ) : (
+              <button className="secondary-button thin-button" onClick={() => void onGenerate()} disabled={busy}>
+                <span>{busy ? "Generating..." : "Generate Paper"}</span>
+              </button>
+            )}
             <StatusPill status={assignment.status} />
           </div>
         </div>

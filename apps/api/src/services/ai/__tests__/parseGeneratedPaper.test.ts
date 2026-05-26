@@ -68,6 +68,55 @@ describe("parseGeneratedPaper", () => {
     expect(parsed.sections[0]?.questions[1]?.questionNumber).toBe(2);
   });
 
+  it("accepts common AI answer aliases before schema validation", () => {
+    const raw = JSON.stringify({
+      title: "Quiz on Electricity",
+      subject: "Science",
+      className: "Grade 8",
+      durationMinutes: 45,
+      totalMarks: 4,
+      instructions: ["Attempt all questions"],
+      sections: [
+        {
+          id: "section-a",
+          title: "Section A",
+          instruction: "Attempt all questions",
+          questions: [
+            {
+              id: "q-1",
+              questionNumber: 1,
+              text: "Define electric current.",
+              difficulty: "easy",
+              marks: 2,
+              correctAnswer: "Rate of flow of charge.",
+              type: "Short Questions"
+            },
+            {
+              id: "q-2",
+              questionNumber: 2,
+              text: "State Ohm's law.",
+              difficulty: "medium",
+              marks: 2,
+              solution: "V = IR",
+              type: "Short Questions"
+            }
+          ]
+        }
+      ],
+      answerKey: [
+        { questionNumber: 1, correctAnswer: "Rate of flow of charge.", explanation: "Definition." },
+        { questionNumber: 2, solution: "V = IR", explanation: "Formula." }
+      ]
+    });
+
+    const parsed = parseGeneratedPaper(raw, mockAssignment as never);
+
+    expect(parsed.sections[0]?.questions[0]?.answer).toBe("Rate of flow of charge.");
+    expect(parsed.sections[0]?.questions[1]?.answer).toBe("V = IR");
+    expect(parsed.answerKey[0]?.answer).toBe("Rate of flow of charge.");
+    expect(parsed.answerKey[1]?.answer).toBe("V = IR");
+  });
+
   it("rejects placeholder meta questions", () => {
     const raw = JSON.stringify({
       title: "Quiz on Electricity",

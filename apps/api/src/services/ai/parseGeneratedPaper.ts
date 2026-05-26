@@ -1,8 +1,42 @@
 import type { AssignmentDocument } from "../../models/Assignment.js";
 import { generatedPaperSchema, type GeneratedPaper, type PaperQuestion, type PaperSection } from "@veda/shared";
 
+type RawRecord = Record<string, unknown>;
+
 const stripCodeFence = (value: string) =>
   value.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/, "");
+
+const asRecord = (value: unknown): RawRecord => (value && typeof value === "object" ? (value as RawRecord) : {});
+
+const readString = (value: unknown) => (typeof value === "string" && value.trim() ? value.trim() : undefined);
+
+const getStringField = (record: RawRecord, fieldNames: string[]) => {
+  for (const fieldName of fieldNames) {
+    const value = readString(record[fieldName]);
+    if (value) {
+      return value;
+    }
+  }
+
+  return undefined;
+};
+
+const answerFieldNames = [
+  "answer",
+  "correctAnswer",
+  "correct_answer",
+  "expectedAnswer",
+  "expected_answer",
+  "modelAnswer",
+  "model_answer",
+  "solution",
+  "finalAnswer",
+  "final_answer",
+  "answerText",
+  "answer_text",
+  "correctOption",
+  "correct_option"
+];
 
 const normalizeDifficulty = (value: string): "easy" | "medium" | "hard" => {
   const normalized = value.toLowerCase().trim();
@@ -35,6 +69,12 @@ export const parseGeneratedPaper = (rawText: string, assignment: AssignmentDocum
     throw new Error("The AI generated an incorrect number of sections. Please try generating again.");
   }
 
+  const parsedAnswerKey = Array.isArray(parsed.answerKey) ? parsed.answerKey : [];
+  const getAnswerKeyAnswer = (index: number, questionNumber: number) => {
+    const matchingItem = parsedAnswerKey.find((item) => asRecord(item).questionNumber === questionNumber);
+    return getStringField(asRecord(matchingItem ?? parsedAnswerKey[index]), answerFieldNames);
+  };
+
   let questionNumber = 1;
   const sections: PaperSection[] = parsed.sections.map((section, sectionIndex) => {
     const requestedConfig = assignment.questionTypes[sectionIndex];
@@ -48,14 +88,27 @@ export const parseGeneratedPaper = (rawText: string, assignment: AssignmentDocum
       );
     }
 
-    const questions: PaperQuestion[] = section.questions.map((question) => ({
-      ...question,
-      id: question.id || `q-${questionNumber}`,
-      questionNumber: questionNumber++,
-      difficulty: normalizeDifficulty(question.difficulty),
-      marks: requestedConfig?.marksPerQuestion ?? question.marks,
-      type: question.type || requestedConfig?.type || "General"
-    }));
+    const questions: PaperQuestion[] = section.questions.map((question) => {
+      const currentQuestionNumber = questionNumber++;
+      const questionRecord = asRecord(question);
+      const answer =
+        getStringField(questionRecord, answerFieldNames) ||
+        getAnswerKeyAnswer(currentQuestionNumber - 1, currentQuestionNumber);
+
+      if (!answer) {
+        throw new Error(`Question ${currentQuestionNumber} is missing an answer. Please try generating again.`);
+      }
+
+      return {
+        ...question,
+        id: question.id || `q-${currentQuestionNumber}`,
+        questionNumber: currentQuestionNumber,
+        difficulty: normalizeDifficulty(question.difficulty),
+        marks: requestedConfig?.marksPerQuestion ?? question.marks,
+        answer,
+        type: question.type || requestedConfig?.type || "General"
+      };
+    });
 
     questions.forEach((question) => {
       ensureExamReadyText(question.text, "question");
@@ -79,8 +132,8 @@ export const parseGeneratedPaper = (rawText: string, assignment: AssignmentDocum
   const flattenedQuestions = sections.flatMap((section) => section.questions);
   const answerKey = flattenedQuestions.map((question, index) => ({
       questionNumber: question.questionNumber,
-      answer: question.answer,
-      explanation: parsed.answerKey[index]?.explanation ?? ""
+      answer: getAnswerKeyAnswer(index, question.questionNumber) || question.answer,
+      explanation: readString(asRecord(parsedAnswerKey[index]).explanation) ?? ""
     }));
 
   answerKey.forEach((item) => {
