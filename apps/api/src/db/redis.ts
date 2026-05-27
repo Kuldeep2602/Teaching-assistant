@@ -4,11 +4,15 @@ import { env } from "../config/env.js";
 import { QUEUE_NAMES } from "../config/queues.js";
 
 const baseRedisOptions = {
-  maxRetriesPerRequest: null as null
+  maxRetriesPerRequest: null as null,
+  // Railway's private network is IPv6-only; family 0 lets DNS return either
+  // family so the *.railway.internal Redis host resolves. Harmless locally.
+  family: 0
 };
 
 export const queueConnection = {
-  url: env.REDIS_URL
+  url: env.REDIS_URL,
+  family: 0
 };
 
 export const redis = new Redis(env.REDIS_URL, baseRedisOptions);
